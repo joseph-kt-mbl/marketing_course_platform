@@ -31,12 +31,10 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkUser = async () => {
       let token = localStorage.getItem("accessToken");
-
       if (!token) {
-        token = await refreshAccessToken();
+        setUser(null)  
+        return;  
       }
-
-      if (!token) return;
 
       let res = await fetchProfile(token);
 

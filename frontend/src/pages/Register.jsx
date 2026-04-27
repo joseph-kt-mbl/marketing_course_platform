@@ -1,541 +1,404 @@
-import { useState } from 'react';
-import { useNavigate ,useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import './Register.css';
 
 function Register() {
   const [searchParams] = useSearchParams();
-  const userEmail = searchParams.get('email');
+  const email = searchParams.get('email');
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: email || '',
+    age: '',
+    gender: '',
+    phone: '',
     password: '',
     confirmPassword: '',
-    phoneNumber: ''
+    agreeTerms: false,
   });
 
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [status, setStatus] = useState(null); // 'success', 'error', null
   const [passwordStrength, setPasswordStrength] = useState(0);
-  const [showPassword, setShowPassword] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
-    // Calculate password strength
-    if (name === 'password') {
-      calculatePasswordStrength(value);
+  useEffect(() => {
+    if (!email) {
+      navigate('/');
     }
-  };
-
-  const calculatePasswordStrength = (password) => {
-    let strength = 0;
-    if (password.length >= 8) strength++;
-    if (password.length >= 12) strength++;
-    if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
-    if (/[0-9]/.test(password)) strength++;
-    if (/[^a-zA-Z0-9]/.test(password)) strength++;
-    setPasswordStrength(strength);
-  };
+  }, [email, navigate]);
 
   const validateForm = () => {
-    if (!formData.password || !formData.confirmPassword || !formData.phoneNumber) {
-      setMessage("Please fill in all fields");
-      setStatus("error");
-      return false;
+    const newErrors = {};
+
+    if (formData.firstName.trim().length < 3 ) {
+      newErrors.firstName = '⚠ Enter your first firstname';
+    }
+    if (formData.lastName.trim().length < 3 ) {
+      newErrors.lastName = '⚠ Enter your lastname)';
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(formData.email)) {
+      newErrors.email = '⚠ Enter a valid email address';
+    }
+
+    const age = parseInt(formData.age);
+    if (isNaN(age) || age < 16 || age > 80) {
+      newErrors.age = '⚠ Age must be between 16 and 80';
+    }
+
+    if (formData.phone.replace(/\D/g, '').length < 7) {
+      newErrors.phone = '⚠ Enter a valid phone number';
     }
 
     if (formData.password.length < 8) {
-      setMessage("Password must be at least 8 characters long");
-      setStatus("error");
-      return false;
+      newErrors.password = '⚠ Password must be at least 8 characters';
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setMessage("Passwords do not match");
-      setStatus("error");
-      return false;
+      newErrors.confirmPassword = '⚠ Passwords do not match';
     }
 
-    if (!/^\d{10,}$/.test(formData.phoneNumber.replace(/\D/g, ''))) {
-      setMessage("Please enter a valid phone number");
-      setStatus("error");
-      return false;
+    if (!formData.agreeTerms) {
+      newErrors.agreeTerms = '⚠ Please accept the terms to continue';
     }
 
-    return true;
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const getPasswordStrength = (pw) => {
+    let strength = 0;
+    if (pw.length >= 8) strength++;
+    if (/[A-Z]/.test(pw)) strength++;
+    if (/[0-9]/.test(pw)) strength++;
+    if (/[^A-Za-z0-9]/.test(pw)) strength++;
+    return strength;
+  };
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    const fieldValue = type === 'checkbox' ? checked : value;
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: fieldValue
+    }));
+
+    if (name === 'password') {
+      setPasswordStrength(getPasswordStrength(value));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      return;
+    }
 
     setLoading(true);
-    setMessage("");
-    setStatus(null);
 
     try {
-      const res = await fetch('/api/users/register', {
+      const response = await fetch('/api/users/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          firstname: formData.firstName,
+          lastname: formData.lastName,
+          email: formData.email,
+          age: parseInt(formData.age),
+          gender: formData.gender,
+          phone: '+213' + formData.phone,
           password: formData.password,
-          phone: formData.phoneNumber,
-          firstname: formData.firstName || 'youcef',
-          lastname: formData.lastName || 'Abdellaoui',
-          email: userEmail
         }),
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (!res.ok) throw new Error(data.message || 'Registration failed');
+      if (!response.ok) {
+        setErrors({ submit: data.message || 'Registration failed' });
+        setLoading(false);
+        return;
+      }
 
-      setMessage("Registration completed successfully!");
-      setStatus("success");
-
+      // Save tokens
       localStorage.setItem('accessToken', data.accessToken);
-      
-      // Redirect to login after success
-        navigate('/dashboard');
-    } catch (err) {
-      setMessage(err.message || "Something went wrong. Please try again.");
-      setStatus("error");
-    } finally {
+
+      // Redirect to dashboard
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Registration error:', error);
+      setErrors({ submit: 'An error occurred. Please try again.' });
       setLoading(false);
     }
   };
 
-  const getPasswordStrengthColor = () => {
-    if (passwordStrength <= 1) return '#ef4444';
-    if (passwordStrength <= 2) return '#f97316';
-    if (passwordStrength <= 3) return '#eab308';
-    if (passwordStrength === 4) return '#84cc16';
-    return '#22c55e';
+  const getStrengthLabel = (strength) => {
+    if (strength <= 1) return '🔴 Too Weak';
+    if (strength <= 2) return '🟡 Fair';
+    return '🟢 Strong';
   };
 
-  const getPasswordStrengthText = () => {
-    if (passwordStrength === 0) return 'Very Weak';
-    if (passwordStrength === 1) return 'Weak';
-    if (passwordStrength === 2) return 'Fair';
-    if (passwordStrength === 3) return 'Good';
-    if (passwordStrength === 4) return 'Strong';
-    return 'Very Strong';
+  const getStrengthColor = (strength) => {
+    if (strength <= 1) return '#EF4444';
+    if (strength <= 2) return '#C5A021';
+    return '#059669';
   };
 
   return (
     <div className="register-container">
-      <style>{`
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
+      <div className="page-bg"></div>
+      <div className="bg-grid"></div>
+      <div className="bg-orb bg-orb-1"></div>
+      <div className="bg-orb bg-orb-2"></div>
 
-        .register-container {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: linear-gradient(135deg, #fafbfc 0%, #f0f4f8 50%, #e8ecf1 100%);
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
-          overflow: hidden;
-          position: relative;
-        }
+      <main className="register-main">
+        <div className="card-wrapper">
+          <div className="reg-card">
+            <div className="card-accent"></div>
 
-        .register-container::before {
-          content: '';
-          position: absolute;
-          width: 500px;
-          height: 500px;
-          background: radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%);
-          border-radius: 50%;
-          top: -150px;
-          right: -150px;
-          animation: drift 8s ease-in-out infinite;
-        }
-
-        .register-container::after {
-          content: '';
-          position: absolute;
-          width: 400px;
-          height: 400px;
-          background: radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, transparent 70%);
-          border-radius: 50%;
-          bottom: -100px;
-          left: -100px;
-          animation: drift 10s ease-in-out infinite reverse;
-        }
-
-        @keyframes drift {
-          0%, 100% { transform: translate(0, 0); }
-          50% { transform: translate(40px, -40px); }
-        }
-
-        .register-card {
-          background: white;
-          border-radius: 24px;
-          padding: 60px 50px;
-          max-width: 520px;
-          width: 90%;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
-          position: relative;
-          z-index: 10;
-          animation: slideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(40px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .register-header {
-          margin-bottom: 40px;
-          text-align: center;
-        }
-
-        .register-emoji {
-          font-size: 56px;
-          margin-bottom: 20px;
-          display: block;
-          animation: slideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
-        }
-
-        .register-title {
-          font-size: 32px;
-          font-weight: 700;
-          color: #0f172a;
-          margin-bottom: 12px;
-          letter-spacing: -0.8px;
-          background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-
-        .register-subtitle {
-          font-size: 15px;
-          color: #64748b;
-          line-height: 1.6;
-        }
-
-        .form-group {
-          margin-bottom: 24px;
-          animation: slideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
-        }
-
-        .form-label {
-          display: block;
-          font-size: 14px;
-          font-weight: 600;
-          color: #0f172a;
-          margin-bottom: 8px;
-        }
-
-        .input-wrapper {
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-
-        .input-icon {
-          position: absolute;
-          left: 14px;
-          font-size: 18px;
-          color: #cbd5e1;
-          pointer-events: none;
-          transition: color 0.3s ease;
-        }
-
-        .register-input {
-          width: 100%;
-          padding: 12px 14px 12px 48px;
-          border: 2px solid #e2e8f0;
-          border-radius: 12px;
-          font-size: 15px;
-          font-family: inherit;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          background: #f9fafb;
-          color: #0f172a;
-        }
-
-        .register-input::placeholder {
-          color: #94a3b8;
-        }
-
-        .register-input:focus {
-          outline: none;
-          border-color: #6366f1;
-          background: white;
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
-        .register-input:focus + .input-icon {
-          color: #6366f1;
-        }
-
-        .password-toggle {
-          position: absolute;
-          right: 14px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-size: 18px;
-          color: #94a3b8;
-          transition: color 0.3s ease;
-        }
-
-        .password-toggle:hover {
-          color: #6366f1;
-        }
-
-        .password-strength {
-          display: flex;
-          gap: 4px;
-          margin-top: 8px;
-        }
-
-        .strength-bar {
-          flex: 1;
-          height: 4px;
-          background: #e2e8f0;
-          border-radius: 2px;
-          overflow: hidden;
-        }
-
-        .strength-fill {
-          height: 100%;
-          width: 0;
-          background: ${props => props.color || '#e2e8f0'};
-          transition: all 0.3s ease;
-          border-radius: 2px;
-        }
-
-        .strength-text {
-          font-size: 12px;
-          font-weight: 600;
-          margin-top: 4px;
-          color: #64748b;
-        }
-
-        .message {
-          padding: 14px;
-          border-radius: 12px;
-          font-size: 14px;
-          line-height: 1.6;
-          text-align: center;
-          animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-          margin-bottom: 24px;
-          border: 1px solid transparent;
-        }
-
-        .message.success {
-          background: rgba(16, 185, 129, 0.1);
-          border-color: rgba(16, 185, 129, 0.3);
-          color: #059669;
-        }
-
-        .message.error {
-          background: rgba(239, 68, 68, 0.1);
-          border-color: rgba(239, 68, 68, 0.3);
-          color: #dc2626;
-        }
-
-        .register-button {
-          width: 100%;
-          padding: 14px 24px;
-          background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-          color: white;
-          border: none;
-          border-radius: 12px;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          position: relative;
-          overflow: hidden;
-          animation: slideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-        }
-
-        .register-button::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-          transition: left 0.5s ease;
-        }
-
-        .register-button:hover:not(:disabled)::before {
-          left: 100%;
-        }
-
-        .register-button:hover:not(:disabled) {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 32px rgba(99, 102, 241, 0.4);
-        }
-
-        .register-button:active:not(:disabled) {
-          transform: translateY(-1px);
-        }
-
-        .register-button:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .spinner {
-          width: 16px;
-          height: 16px;
-          border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 640px) {
-          .register-card {
-            padding: 40px 24px;
-          }
-
-          .register-title {
-            font-size: 24px;
-          }
-
-          .register-emoji {
-            font-size: 48px;
-          }
-        }
-      `}</style>
-
-      <div className="register-card">
-        <div className="register-header">
-          <span className="register-emoji">🔐</span>
-          <h1 className="register-title">Almost There!</h1>
-          <p className="register-subtitle">
-            Set your password and add your phone number to complete your registration
-          </p>
-        </div>
-
-        {message && (
-          <div className={`message ${status}`}>
-            {message}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          {/* Phone Number */}
-          <div className="form-group">
-            <label className="form-label">📱 Phone Number</label>
-            <div className="input-wrapper">
-              <input
-                className="register-input"
-                type="tel"
-                name="phoneNumber"
-                value={formData.phoneNumber}
-                onChange={handleChange}
-                placeholder="+1 (555) 000-0000"
-                required
-              />
-              <span className="input-icon">📞</span>
+            <div className="step-bar">
+              <div className="step-item">
+                <div className="step-circle active">1</div>
+                <div className="step-label active">Email <small>Done</small></div>
+              </div>
+              <div className="step-connector done"></div>
+              <div className="step-item">
+                <div className="step-circle active">2</div>
+                <div className="step-label active">Details <small>Step 2 of 2</small></div>
+              </div>
+              <div className="step-connector"></div>
+              <div className="step-item">
+                <div className="step-circle pending">3</div>
+                <div className="step-label">Payment <small>Step 3 of 3</small></div>
+              </div>
             </div>
-          </div>
 
-          {/* Password */}
-          <div className="form-group">
-            <label className="form-label">🔑 Password</label>
-            <div className="input-wrapper">
-              <input
-                className="register-input"
-                type={showPassword ? "text" : "password"}
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="At least 8 characters"
-                required
-              />
-              <span className="input-icon">🔒</span>
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? '👁️' : '👁️‍🗨️'}
-              </button>
-            </div>
-            {formData.password && (
-              <>
-                <div className="password-strength">
-                  {[0, 1, 2, 3, 4].map(i => (
-                    <div key={i} className="strength-bar">
-                      <div
-                        className="strength-fill"
-                        style={{
-                          width: i < passwordStrength ? '100%' : '0%',
-                          backgroundColor: getPasswordStrengthColor()
-                        }}
-                      ></div>
+            <div className="card-body">
+              <div className="card-title">Complete Your Profile</div>
+              <div className="card-sub">Fill in your details to get started. Your data is secure and encrypted.</div>
+
+              {errors.submit && (
+                <div className="field-msg error">
+                  {errors.submit}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} noValidate>
+                {/* First Name */}
+                <div className="form-group">
+                  <div className="form-label">First Name <span className="label-req">*</span></div>
+                  <div className="input-wrap">
+                    <span className="input-icon">👤</span>
+                    <input
+                      type="text"
+                      name="firstName"
+                      className={`input-field ${errors.firstName ? 'invalid' : formData.firstName ? 'valid' : ''}`}
+                      placeholder="e.g. Ahmed "
+                      value={formData.firstName}
+                      onChange={handleChange}
+                      maxLength="40"
+                    />
+                    <span className="input-status">
+                      {errors.firstName ? '❌' : formData.firstName ? '✅' : ''}
+                    </span>
+                  </div>
+                  {errors.firstName && <div className="field-msg error">{errors.firstName}</div>}
+                </div>
+                  {/* Last Name */}
+                  <div className="form-group">
+                  <div className="form-label">Last Name <span className="label-req">*</span></div>
+                  <div className="input-wrap">
+                    <span className="input-icon">👤</span>
+                    <input
+                      type="text"
+                      name="lastName"
+                      className={`input-field ${errors.lastName ? 'invalid' : formData.lastName ? 'valid' : ''}`}
+                      placeholder="e.g. Al-Rashidi"
+                      value={formData.lastName}
+                      onChange={handleChange}
+                      maxLength="40"
+                    />
+                    <span className="input-status">
+                      {errors.lastName ? '❌' : formData.lastName ? '✅' : ''}
+                    </span>
+                  </div>
+                  {errors.lastName && <div className="field-msg error">{errors.lastName}</div>}
+                </div>
+
+                {/* Email (disabled) */}
+                <div className="form-group">
+                  <div className="form-label">Email Address <span className="label-req">*</span></div>
+                  <div className="input-wrap">
+                    <span className="input-icon">✉️</span>
+                    <input
+                      type="email"
+                      name="email"
+                      className="input-field valid"
+                      value={formData.email}
+                      disabled
+                    />
+                    <span className="input-status">✅</span>
+                  </div>
+                </div>
+
+                {/* Age + Gender */}
+                <div className="form-row">
+                  <div className="form-group">
+                    <div className="form-label">Age <span className="label-req">*</span><span className="label-hint">Min. 16</span></div>
+                    <div className="input-wrap">
+                      <span className="input-icon">🎂</span>
+                      <input
+                        type="number"
+                        name="age"
+                        className={`input-field ${errors.age ? 'invalid' : formData.age ? 'valid' : ''}`}
+                        placeholder="28"
+                        min="16"
+                        max="80"
+                        value={formData.age}
+                        onChange={handleChange}
+                      />
+                      <span className="input-status">
+                        {errors.age ? '❌' : formData.age ? '✅' : ''}
+                      </span>
                     </div>
-                  ))}
+                    {errors.age && <div className="field-msg error">{errors.age}</div>}
+                  </div>
+                  <div className="form-group">
+                    <div className="form-label">Gender <span style={{ color: '#9CA3AF', fontWeight: '500', textTransform: 'none', letterSpacing: '0', fontSize: '.65rem' }}>(Optional)</span></div>
+                    <div className="input-wrap">
+                      <span className="input-icon" style={{ fontSize: '.85rem' }}>⚧</span>
+                      <select
+                        name="gender"
+                        className="input-field"
+                        style={{ paddingLeft: '2.4rem', cursor: 'pointer' }}
+                        value={formData.gender}
+                        onChange={handleChange}
+                      >
+                        <option value="">Prefer not to say</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <div className="strength-text">
-                  Strength: <span style={{ color: getPasswordStrengthColor() }}>
-                    {getPasswordStrengthText()}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
 
-          {/* Confirm Password */}
-          <div className="form-group">
-            <label className="form-label">✓ Confirm Password</label>
-            <div className="input-wrapper">
-              <input
-                className="register-input"
-                type={showPassword ? "text" : "password"}
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                placeholder="Confirm your password"
-                required
-              />
-              <span className="input-icon">✓</span>
+                {/* Phone */}
+                <div className="form-group" style={{ marginTop: '1.1rem' }}>
+                  <div className="form-label">Phone Number <span className="label-req">*</span></div>
+                  <div className="phone-wrap">
+                    <select className="country-select">
+                      <option value="+213">🇩🇿 +213</option>
+                    </select>
+                    <div className="phone-input-wrap">
+                      <input
+                        type="tel"
+                        name="phone"
+                        className={`input-field no-li ${errors.phone ? 'invalid' : formData.phone ? 'valid' : ''}`}
+                        placeholder="5XX XXX XXXX"
+                        maxLength="15"
+                        value={formData.phone}
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/[^\d\s\-\(\)+]/g, '');
+                          setFormData(prev => ({ ...prev, phone: cleaned }));
+                        }}
+                      />
+                      <span className="input-status">
+                        {errors.phone ? '❌' : formData.phone ? '✅' : ''}
+                      </span>
+                    </div>
+                  </div>
+                  {errors.phone && <div className="field-msg error">{errors.phone}</div>}
+                </div>
+
+                <div className="form-divider">Security</div>
+
+                {/* Password */}
+                <div className="form-group">
+                  <div className="form-label">Create Password <span className="label-req">*</span><span className="label-hint">Min. 8 chars</span></div>
+                  <div className="input-wrap">
+                    <span className="input-icon">🔑</span>
+                    <input
+                      type="password"
+                      name="password"
+                      className={`input-field ${errors.password ? 'invalid' : formData.password ? 'valid' : ''}`}
+                      placeholder="Create a strong password"
+                      value={formData.password}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  {formData.password && (
+                    <div className="strength-wrap">
+                      <div className="strength-row">
+                        {[1, 2, 3, 4].map(i => (
+                          <div
+                            key={i}
+                            className={`strength-seg ${passwordStrength >= i ? (passwordStrength <= 1 ? 'weak' : passwordStrength <= 2 ? 'fair' : 'strong') : ''}`}
+                          ></div>
+                        ))}
+                      </div>
+                      <div className="strength-label" style={{ color: getStrengthColor(passwordStrength) }}>
+                        {getStrengthLabel(passwordStrength)}
+                      </div>
+                    </div>
+                  )}
+                  {errors.password && <div className="field-msg error">{errors.password}</div>}
+                </div>
+
+                {/* Confirm Password */}
+                <div className="form-group">
+                  <div className="form-label">Confirm Password <span className="label-req">*</span></div>
+                  <div className="input-wrap">
+                    <span className="input-icon">🔐</span>
+                    <input
+                      type="password"
+                      name="confirmPassword"
+                      className={`input-field ${errors.confirmPassword ? 'invalid' : formData.confirmPassword ? 'valid' : ''}`}
+                      placeholder="Repeat your password"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                    />
+                    <span className="input-status">
+                      {errors.confirmPassword ? '❌' : formData.confirmPassword && !errors.confirmPassword ? '✅' : ''}
+                    </span>
+                  </div>
+                  {errors.confirmPassword && <div className="field-msg error">{errors.confirmPassword}</div>}
+                </div>
+
+                {/* Terms */}
+                <div className="terms-row">
+                  <input
+                    type="checkbox"
+                    name="agreeTerms"
+                    className="terms-checkbox"
+                    id="terms"
+                    checked={formData.agreeTerms}
+                    onChange={handleChange}
+                  />
+                  <label htmlFor="terms" className="terms-text">
+                    I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>. I confirm I am at least 16 years old.
+                  </label>
+                </div>
+                {errors.agreeTerms && <div className="field-msg error" style={{ marginTop: '-.5rem', marginBottom: '.875rem' }}>{errors.agreeTerms}</div>}
+
+                {/* Submit */}
+                <button
+                  type="submit"
+                  className="submit-btn"
+                  disabled={loading}
+                >
+                  <span>{loading ? 'Creating account...' : 'Complete Registration & Proceed'}</span>
+                  {loading && <div className="btn-loader"></div>}
+                </button>
+              </form>
             </div>
           </div>
-
-          <button 
-            className="register-button" 
-            type="submit"
-            disabled={loading}
-          >
-            {loading && <div className="spinner"></div>}
-            <span>{loading ? 'Creating Account...' : 'Complete Registration'}</span>
-          </button>
-        </form>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
