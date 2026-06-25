@@ -449,6 +449,16 @@ export const checkEmailExistence = async (req,res) => {
 }
 export const sendUrl = async (req, res) => {
   const { receiver } = req.body;
+  const protocol =
+  req.headers["x-forwarded-proto"] ||
+  req.protocol ||
+  "http";
+
+const host =
+  req.headers["x-forwarded-host"] ||
+  req.headers.host;
+
+const baseUrl = `${protocol}://${host}`;
 
   if (!receiver) {
     return res.status(401).json({
@@ -460,7 +470,7 @@ export const sendUrl = async (req, res) => {
 
   try {
      const token = nanoid(64);
-     const html = `<html><body><a href='http://localhost:5173/verify?token=${token}'>GO!</a></body></html>`
+     const html = `<html><body><a href='${baseUrl}/verify?token=${token}'>GO!</a></body></html>`
     
      const info = await sendEmail(receiver,"validating email!", html)
     

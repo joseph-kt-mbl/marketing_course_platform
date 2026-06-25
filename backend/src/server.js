@@ -20,41 +20,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// const startServer = async () => {
-//   try {
-//     if (process.env.NGROK_AUTHTOKEN) {
-//       await ngrok.authtoken(process.env.NGROK_AUTHTOKEN);
-//     }
-
-//     server.listen(PORT, async () => {
-//   console.log(`🚀 Server running on port ${PORT}`);
-//   console.log(`🔌 Socket.io enabled on port ${PORT}`);
-//   console.log(`📡 Ngrok enabled: ${!!process.env.NGROK_AUTHTOKEN}`);
-
-//   const ngrokToken = process.env.NGROK_AUTHTOKEN;
-//   if (ngrokToken && !ngrokToken.startsWith('${')) {
-//     try {
-//       console.log(`⏳ Connecting to ngrok...`);
-//       const listener = await ngrok.connect({
-//         addr: Number(PORT),
-//         response_header_add: ["ngrok-skip-browser-warning=true"],
-//       });
-//       const url = listener.url();
-//       console.log(`🌍 Ngrok URL: ${url}`);
-//     } catch (ngrokError) {
-//       console.error("❌ Ngrok connection error:", ngrokError.message ?? ngrokError);
-//     }
-//   } else {
-//     console.warn("⚠️ Ngrok skipped: token missing or invalid");
-//   }
-// });
-
-  
-//   } catch (error) {
-//     console.error("❌ Server startup error:", error);
-//   }
-// };
-
 
 const startServer = async () => {
   try {
