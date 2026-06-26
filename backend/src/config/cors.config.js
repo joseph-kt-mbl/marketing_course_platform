@@ -1,6 +1,7 @@
 export const allowedOrigins = [
   "http://localhost:5173",
   "http://mcp.local",
+  "https://mcp.local",
   /^https:\/\/[a-z0-9-]+\.ngrok-free\.app$/,
   /^https:\/\/[a-z0-9-]+\.ngrok\.io$/,
 ];
